@@ -1,0 +1,51 @@
+import express from "express";
+import "dotenv/config";
+import cors from "cors";
+import compression from "compression";
+import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+
+import {
+	compressionOptions,
+	cookieOptions,
+	cookieSecret,
+	corsOptions,
+	eJSONOptions,
+	rateLimitOptions,
+} from "./config.js";
+import router from "./router/index.js";
+import { database, errorHandler } from "./module/index.js";
+
+const app = express(),
+	PORT = Number(process.env.PORT ?? 4000),
+	VERSION =
+		process.env.NODE_ENV === "development" ? "dev" : "v" + process.env.VERSION;
+
+app
+	.use(express.json(eJSONOptions))
+	.use(cookieParser(cookieSecret, cookieOptions))
+	.use(cors(corsOptions))
+	.use(compression(compressionOptions))
+	.use(rateLimit(rateLimitOptions))
+	.use(helmet())
+	.use(`/api/${VERSION}`, router)
+	.use(errorHandler);
+
+database
+	.authenticate()
+	.then(() => {
+		console.log("[DB] Connected"),
+			database
+				.sync({
+					alter: true,
+				})
+				.finally(() => {
+					app.listen(PORT, () =>
+						console.log("[server] (" + VERSION + ") Started on port", PORT),
+					);
+				});
+	})
+	.catch((err) => {
+		console.error("[DB]", err);
+	});
